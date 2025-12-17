@@ -6,23 +6,17 @@ export const processVirtualTryOn = async (
   clothingImage: ImageData,
   customPrompt: string = ""
 ): Promise<string> => {
-  // process.env.API_KEY, build aşamasında vite.config.ts aracılığıyla enjekte edilir.
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
+  // Yeni bir instance oluşturarak her seferinde güncel API anahtarını alıyoruz
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  const systemPrompt = `You are an expert AI fashion stylist and photorealistic image editor.
-  Task: Perform a virtual try-on.
-  Inputs: 
-  1. A photo of a person.
-  2. A photo of a clothing item.
-  Instructions:
-  - Take the clothing item from the second image and realistically "dress" the person in the first image with it.
-  - Maintain the person's exact pose, facial features, and body proportions.
-  - Match the lighting and shadows of the original person's photo for a seamless look.
-  - The final output must be only the high-quality edited image.
-  - If there is any specific instruction: ${customPrompt}`;
+  const instructionText = `TASK: Virtual Try-On. 
+  Take the clothing item from the second image and dress the person in the first image with it. 
+  Maintain the person's pose, face, and background exactly. 
+  Ensure the clothing fits realistically. 
+  Additional user requests: ${customPrompt}`;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-preview-image',
+    model: 'gemini-2.5-flash-image',
     contents: {
       parts: [
         {
@@ -37,28 +31,25 @@ export const processVirtualTryOn = async (
             mimeType: clothingImage.mimeType,
           },
         },
-        { text: systemPrompt },
+        { text: instructionText },
       ],
     },
   });
 
-  let imageUrl = "";
-  for (const part of response.candidates?.[0]?.content?.parts || []) {
-    if (part.inlineData) {
-      imageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-      break;
-    }
+  const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
+  
+  if (!part?.inlineData) {
+    throw new Error("Görsel oluşturulamadı. Lütfen API anahtarınızı ve bölgenizi kontrol edin.");
   }
 
-  if (!imageUrl) throw new Error("Yapay zeka görseli oluşturamadı. Lütfen daha net fotoğraflar deneyin.");
-  return imageUrl;
+  return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
 };
 
 export const editImageWithPrompt = async (
   baseImage: ImageData,
   prompt: string
 ): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash-image',
@@ -70,19 +61,16 @@ export const editImageWithPrompt = async (
             mimeType: baseImage.mimeType,
           },
         },
-        { text: `Edit this image based on the following instruction: ${prompt}. Return the modified image.` },
+        { text: `Edit this image as follows: ${prompt}. Maintain original quality and return only the resulting image.` },
       ],
     },
   });
 
-  let imageUrl = "";
-  for (const part of response.candidates?.[0]?.content?.parts || []) {
-    if (part.inlineData) {
-      imageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-      break;
-    }
+  const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
+  
+  if (!part?.inlineData) {
+    throw new Error("Düzenleme işlemi başarısız oldu.");
   }
 
-  if (!imageUrl) throw new Error("Düzenleme işlemi başarısız oldu.");
-  return imageUrl;
+  return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
 };
