@@ -6,14 +6,17 @@ export const processVirtualTryOn = async (
   clothingImage: ImageData,
   customPrompt: string = ""
 ): Promise<string> => {
-  // Yeni bir instance oluşturarak her seferinde güncel API anahtarını alıyoruz
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // Görsel işleme modelleri için v1beta API sürümü gereklidir
+  const ai = new GoogleGenAI({ 
+    apiKey: process.env.API_KEY,
+    apiVersion: 'v1beta'
+  });
   
   const instructionText = `TASK: Virtual Try-On. 
-  Take the clothing item from the second image and dress the person in the first image with it. 
-  Maintain the person's pose, face, and background exactly. 
-  Ensure the clothing fits realistically. 
-  Additional user requests: ${customPrompt}`;
+  Take the garment from the second image and realistically place it on the person in the first image.
+  - Maintain the person's pose, face, and background exactly.
+  - Blend the clothing naturally with lighting and body shape.
+  - User notes: ${customPrompt}`;
 
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash-image',
@@ -39,7 +42,7 @@ export const processVirtualTryOn = async (
   const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
   
   if (!part?.inlineData) {
-    throw new Error("Görsel oluşturulamadı. Lütfen API anahtarınızı ve bölgenizi kontrol edin.");
+    throw new Error("Görsel üretilemedi. API anahtarınızın bu modele (v1beta) yetkisi olduğundan emin olun.");
   }
 
   return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
@@ -49,7 +52,10 @@ export const editImageWithPrompt = async (
   baseImage: ImageData,
   prompt: string
 ): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ 
+    apiKey: process.env.API_KEY,
+    apiVersion: 'v1beta'
+  });
 
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash-image',
@@ -61,7 +67,7 @@ export const editImageWithPrompt = async (
             mimeType: baseImage.mimeType,
           },
         },
-        { text: `Edit this image as follows: ${prompt}. Maintain original quality and return only the resulting image.` },
+        { text: `Modify this image exactly as described: ${prompt}. Return ONLY the final resulting image.` },
       ],
     },
   });
@@ -69,7 +75,7 @@ export const editImageWithPrompt = async (
   const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
   
   if (!part?.inlineData) {
-    throw new Error("Düzenleme işlemi başarısız oldu.");
+    throw new Error("Görsel düzenlenemedi.");
   }
 
   return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
