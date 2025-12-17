@@ -22,7 +22,7 @@ export const processVirtualTryOn = async (
   - If there is any specific instruction: ${customPrompt}`;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-rreview-image',
+    model: 'gemini-2.5-flash-preview-image',
     contents: {
       parts: [
         {
